@@ -1,0 +1,19 @@
+# Local database and runtime data
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# uv
+.uv/
