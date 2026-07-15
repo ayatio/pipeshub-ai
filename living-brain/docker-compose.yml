@@ -1,0 +1,24 @@
+# Production backend for living-brain: Postgres with the pgvector extension.
+# Start with `make db-postgres` (or `docker compose up -d db`), then set
+#   DATABASE_URL=postgresql://brain:brain@localhost:5433/living_brain
+# in your .env and run `make migrate`.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: brain
+      POSTGRES_PASSWORD: brain
+      POSTGRES_DB: living_brain
+    ports:
+      - "5433:5432"
+    volumes:
+      - brain_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brain -d living_brain"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  brain_pgdata:
