@@ -1,0 +1,13 @@
+# Starter observations for the Living Brain (one per line; '#' lines ignored).
+The night run should stop early once there is nothing left to consolidate.
+Local embeddings come from nomic-embed-text served by Ollama.
+Reflection uses the qwen2.5:14b model to distil observations into insights.
+When Ollama is unreachable the brain drops to a deterministic degraded mode.
+Memories carry a salience score that biases which get consolidated first.
+Consolidation folds several observations into one higher-level insight.
+The database defaults to SQLite so the project runs with zero infrastructure.
+Migrations are plain SQL files applied once and tracked in _migrations.
+Semantic recall ranks memories by cosine similarity of their embeddings.
+Every nightly pass is logged in the night_runs table for later audit.
+Salient observations should be reviewed before less important ones.
+An insight inherits higher salience when it summarises a larger cluster.
