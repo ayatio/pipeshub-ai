@@ -1,0 +1,17 @@
+# Environment / secrets
+.env
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+.uv/
+
+# Runtime data (keep the directories via .gitkeep, ignore generated contents)
+data/brain.db
+data/brain.db-*
+data/reports/*.md
+!data/reports/.gitkeep
+
+# OS noise
+.DS_Store

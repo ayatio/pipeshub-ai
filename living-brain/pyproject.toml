@@ -1,0 +1,22 @@
+[project]
+name = "living-brain"
+version = "0.1.0"
+description = "A local, offline-first 'second brain' that ingests your notes, embeds them, and consolidates them into a nightly digest — like memory consolidation during sleep."
+readme = "README.md"
+requires-python = ">=3.9"
+# Zero third-party dependencies on purpose: the whole thing runs on the Python
+# standard library so `uv sync` works fully offline. Ollama (embeddings + LLM)
+# is reached over plain HTTP when present, and gracefully falls back otherwise.
+dependencies = []
+
+[project.optional-dependencies]
+# Only needed if you want to run the test suite.
+dev = []
+
+[tool.uv]
+# Do not try to build/install this project itself during `uv sync`; we run it
+# via PYTHONPATH=src so no build backend / network fetch is required.
+package = false
+
+[tool.living-brain]
+# Documentation anchor only; real config lives in .env / environment variables.
