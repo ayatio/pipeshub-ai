@@ -43,3 +43,16 @@ def db_conn(cfg: Config):
             conn.commit()
         finally:
             conn.close()
+
+
+@pytest.fixture
+def embedder(cfg: Config):
+    """A live Ollama embedder. Skips if Ollama isn't reachable / model missing."""
+    from living_brain.embedding import Embedder
+
+    e = Embedder(cfg)
+    try:
+        e.embed("probe")
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"no Ollama embeddings available: {exc}")
+    return e

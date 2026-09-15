@@ -1,7 +1,8 @@
 # PROGRESS
 
-**Current phase:** Phase 3 (Embed & search) — next. Phases 1 and 2 are green
-(schema + capture verified against a live Postgres + pgvector).
+**Current phase:** Phase 4 (Extract & resolve) — next. Phases 1-3 are green;
+Phase 3's vector path is written + `-m ollama`-tested but not yet run live here
+(no Ollama in this sandbox).
 
 ## Done
 - **Phase 1 — Foundation (DoD green).** Scaffold (`pyproject.toml` uv/hatchling,
@@ -14,21 +15,30 @@
 - **Phase 2 — Capture & chunk (DoD green).** Heading-aware chunker (pure);
   idempotent `capture` (episode + chunks, dedup by content_hash). Verified:
   sample note → 1 episode + 4 chunks; re-run is a no-op.
-- Core modules: `config`, `ids`, `chunking`, `linking` (canonical form +
-  scoring, pure), `db`, `embedding` (Ollama), `capture`, `cli`.
-- Tests: **24 green** — 21 offline (chunking / ids / linking) + 3 `-m db`
-  (capture creation, idempotency, whitespace-normalised hash). DB tests skip
-  cleanly when no Postgres is reachable, so the offline tier stays green.
+- **Phase 3 — Embed & search (DoD green, vector path pending live Ollama).**
+  `retrieval.hybrid_search`: FTS (chunk.tsv) + optional vector ANN
+  (chunk.embedding) fused with Reciprocal Rank Fusion; degrades to FTS-only when
+  Ollama is down. `brain search "<q>"` returns ranked passages with provenance
+  (episode + heading path + which signals surfaced each hit). Verified live via
+  CLI (FTS path). `capture --embed` populates embeddings when Ollama is up.
+- Core modules: `config`, `ids`, `chunking`, `linking` (pure), `db`,
+  `embedding` (Ollama), `capture`, `retrieval`, `cli`.
+- Tests: **31 passing + 1 ollama-skip** — offline (chunking / ids / linking /
+  RRF fusion) + `-m db` (capture idempotency, FTS search) + `-m ollama`
+  (semantic vector match, skips without Ollama). All non-offline tiers skip
+  cleanly when their backend is absent, so `pytest -q` stays green anywhere.
 - Infra fallback: `scripts/pg_local.sh` + `make db-local` bring up a NATIVE
   PG16+pgvector cluster when there is no Docker daemon.
 - `scripts/run_night.sh` overnight loop; sample note `vault/samples/note.md`.
 
 ## Next action
-1. **Phase 3 (embed & search).** Populate `chunk.embedding` via Ollama
-   (`brain capture --embed`), then implement hybrid retrieval: vector ANN over
-   `chunk.embedding` + FTS over `chunk.tsv`, reciprocal-rank fused, behind
-   `brain search "<q>"`. Add `-m ollama` + `-m db` tests.
-2. Then Phase 4 (extract & resolve), 5 (link), 6 (crystallise), 7 (MCP).
+1. **Phase 4 (extract & resolve).** `extraction.py`: local-LLM strict-JSON
+   extraction of typed entities + relationships from a chunk (pydantic-validated,
+   with the EXTRACT_FALLBACK path when local JSON fails). `resolution.py`:
+   alias → exact label → trigram → embedding cosine → mint; record
+   entity_mention + entity_version. Pure JSON-validation/normalisation split out
+   for offline tests; live extraction under `-m ollama`.
+2. Then Phase 5 (link), 6 (crystallise), 7 (MCP).
 
 ## NEEDS-DECISION
 - *(none open)*

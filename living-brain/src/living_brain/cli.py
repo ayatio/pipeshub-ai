@@ -54,8 +54,30 @@ def _cmd_capture(args: argparse.Namespace) -> int:
 
 
 def _cmd_search(args: argparse.Namespace) -> int:
-    print("search: not yet implemented — Phase 3 (embed & search)", file=sys.stderr)
-    return 3
+    from . import db, retrieval
+    from .embedding import Embedder
+
+    cfg = Config.load()
+    embedder: Embedder | None = None
+    if not args.no_vector:
+        # Probe Ollama; fall back to FTS-only if it isn't reachable.
+        try:
+            e = Embedder(cfg)
+            e.embed("probe")
+            embedder = e
+        except Exception:  # noqa: BLE001
+            print("(ollama unavailable — FTS-only search)", file=sys.stderr)
+    with db.connect(cfg) as conn:
+        hits = retrieval.hybrid_search(conn, args.query, k=args.k, cfg=cfg, embedder=embedder)
+    if not hits:
+        print("no matches")
+        return 0
+    for h in hits:
+        head = h.heading_path or "(no heading)"
+        signals = "+".join(h.signals)
+        snippet = " ".join(h.content.split())[:160]
+        print(f"[{h.score:.4f} {signals}] ep{h.episode_id} · {head}\n    {snippet}")
+    return 0
 
 
 def _cmd_relate(args: argparse.Namespace) -> int:
@@ -82,9 +104,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_cap.add_argument("--embed", action="store_true", help="compute embeddings (needs Ollama)")
     p_cap.set_defaults(func=_cmd_capture)
 
-    p_search = sub.add_parser("search", help="hybrid search (Phase 3)")
+    p_search = sub.add_parser("search", help="hybrid vector+FTS search")
     p_search.add_argument("query")
     p_search.add_argument("-k", type=int, default=8)
+    p_search.add_argument("--no-vector", action="store_true", help="FTS only (skip Ollama)")
     p_search.set_defaults(func=_cmd_search)
 
     p_rel = sub.add_parser("relate", help="explain relations between two entities (Phase 5)")
