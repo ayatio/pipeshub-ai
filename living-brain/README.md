@@ -24,7 +24,9 @@ See [`BUILD-BRIEF.md`](./BUILD-BRIEF.md) for the full design and
 ```bash
 cp .env.example .env          # adjust if needed
 uv sync                       # install deps
-make db && make migrate       # Postgres + pgvector, apply schema
+make db && make migrate       # Postgres + pgvector (Docker), apply schema
+#   ...or, with no Docker daemon:
+#   make db-local && make migrate   # native PG16 + pgvector on :5433
 uv run brain health           # verify DB + pgvector + tables
 
 # ingest a note, search, explain a relationship

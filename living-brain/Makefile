@@ -1,4 +1,4 @@
-.PHONY: db migrate down psql health capture mcp test test-db test-ollama fmt
+.PHONY: db db-local migrate down psql health capture mcp test test-db test-ollama fmt
 
 # Bring up Postgres + pgvector and wait for it to be healthy.
 db:
@@ -6,6 +6,10 @@ db:
 	@echo "waiting for Postgres to be healthy..."
 	@until [ "$$(docker inspect -f '{{.State.Health.Status}}' living-brain-db 2>/dev/null)" = "healthy" ]; do sleep 1; done
 	@echo "db is healthy on localhost:5433"
+
+# Fallback when there is no Docker daemon: a native PG16+pgvector cluster.
+db-local:
+	bash scripts/pg_local.sh
 
 # Apply every migration in order.
 migrate:
