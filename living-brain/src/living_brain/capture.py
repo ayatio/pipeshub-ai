@@ -12,6 +12,7 @@ from pathlib import Path
 import psycopg
 
 from . import links as L
+from . import ontology
 from . import resolution as R
 from .chunking import chunk_markdown
 from .config import Config
@@ -89,6 +90,7 @@ def capture_text(
             _build_links(
                 conn, episode_id, text, resolved_ids, label_to_eid, relationships
             )
+            ontology.refresh_all(conn)  # crystallise types as instances accrue
     conn.commit()
     return CaptureResult(
         episode_id=episode_id,

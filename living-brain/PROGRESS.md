@@ -1,9 +1,10 @@
 # PROGRESS
 
-**Current phase:** Phase 6 (Crystallise) — next. Phases 1-5 are green. The
-LLM-backed paths (vector search, extraction) are written and `-m ollama`-tested,
-but not run live here (no Ollama in this sandbox); the DB-only paths (schema,
-capture, FTS search, resolution, all link generators, relate) are verified live.
+**Current phase:** Phase 7 (MCP) — last. Phases 1-6 are green. The LLM-backed
+paths (vector search, extraction) are written and `-m ollama`-tested, but not
+run live here (no Ollama in this sandbox); the DB-only paths (schema, capture,
+FTS search, resolution, all link generators, relate, crystallisation) are
+verified live.
 
 ## Done
 - **Phase 1 — Foundation (DoD green).** Scaffold (`pyproject.toml` uv/hatchling,
@@ -41,28 +42,37 @@ capture, FTS search, resolution, all link generators, relate) are verified live.
   A B` explains every relation with method + score + status + evidence;
   `set_status` is the only path out of `proposed` (§1.4). Verified end-to-end
   (person↔project extracted+temporal, person↔concept structural).
+- **Phase 6 — Crystallise (DoD green).** `ontology.py`: types are discovered,
+  not decreed — first sighting registers a `proposed` `ontology_type`; it flips
+  to `crystallised` (monotonically) once instances ≥ `instance_min` (default 3).
+  `infer_shape` (pure) summarises common vs seen prop keys. Capture calls
+  `refresh_all` after linking; `brain types` lists status + n/instance_min +
+  common shape keys. Verified live (widget crystallises at 3 with
+  common:[color,size]; gadget stays proposed at 2).
 - Core modules: `config`, `ids`, `chunking`, `linking`, `wikilinks` (pure),
-  `db`, `embedding`, `extraction`, `resolution`, `links`, `capture`,
+  `db`, `embedding`, `extraction`, `resolution`, `links`, `ontology`, `capture`,
   `retrieval`, `cli`.
-- Tests: **53 passing + 2 ollama-skips** — offline (chunking / ids / linking /
-  RRF fusion / extraction parsing / wikilinks) + `-m db` (capture idempotency,
-  FTS search, resolution ladder incl. trigram, append-only versioning,
-  capture→extract wiring, all link generators, relate, confirm) + `-m ollama`
-  (semantic vector match, live extraction). Non-offline tiers skip cleanly when
-  their backend is absent, so `pytest -q` stays green anywhere.
+- **Test isolation:** DB tests now run against an isolated `<db>_test` database,
+  migrated once and truncated after each test — tests never pollute the real
+  vault index and never interfere with each other.
+- Tests: **60 passing + 2 ollama-skips** — offline (chunking / ids / linking /
+  RRF fusion / extraction parsing / wikilinks / shape inference) + `-m db`
+  (capture idempotency, FTS search, resolution ladder incl. trigram, append-only
+  versioning, capture→extract wiring, all link generators, relate, confirm,
+  crystallisation) + `-m ollama` (semantic vector match, live extraction).
+  Non-offline tiers skip cleanly when their backend is absent, so `pytest -q`
+  stays green anywhere.
 - Infra fallback: `scripts/pg_local.sh` + `make db-local` bring up a NATIVE
   PG16+pgvector cluster when there is no Docker daemon.
 - `scripts/run_night.sh` overnight loop; sample note `vault/samples/note.md`.
 
 ## Next action
-1. **Phase 6 (crystallise).** `ontology.py`: observe entity types as they
-   accumulate; register/propose an `ontology_type` per distinct type, infer its
-   `shape` (common prop keys), and flip `proposed → crystallised` once
-   `instance_min` (default 3) entities share the shape. `brain types` to list
-   status + instance counts. Pure shape-inference tested offline; the count/flip
-   logic tested `-m db`.
-2. Then Phase 7 (MCP): serve search / relate / neighbors / capture / entity over
-   MCP with a bearer token (`make mcp`).
+1. **Phase 7 (MCP).** `mcp_server.py`: expose the core functions as MCP tools —
+   `brain.search`, `brain.relate`, `brain.neighbors`, `brain.entity`,
+   `brain.capture` — over the MCP Python SDK with bearer-token auth (`MCP_TOKEN`).
+   Wire `brain mcp` / `make mcp`. Tools call the same functions the CLI uses (a
+   thin read/traverse layer). DoD: server starts; a client can search + traverse.
+   After Phase 7's DoD is green, write "ALL PHASES COMPLETE" as line 1.
 
 ## NEEDS-DECISION
 - *(none open)*

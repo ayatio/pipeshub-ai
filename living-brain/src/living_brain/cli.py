@@ -113,6 +113,23 @@ def _cmd_link(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_types(_args: argparse.Namespace) -> int:
+    from . import db, ontology
+
+    with db.connect() as conn:
+        ontology.refresh_all(conn)
+        conn.commit()
+        rows = ontology.list_types(conn)
+    if not rows:
+        print("no types yet")
+        return 0
+    for r in rows:
+        common = ",".join(r["shape"].get("common_keys", [])) if r["shape"] else ""
+        common = f" · common:[{common}]" if common else ""
+        print(f"{r['status']:>12}  {r['name']}  ({r['instances']}/{r['instance_min']}){common}")
+    return 0
+
+
 def _cmd_mcp(_args: argparse.Namespace) -> int:
     print("mcp: not yet implemented — Phase 7 (MCP)", file=sys.stderr)
     return 3
@@ -147,6 +164,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser(
         "link", help="(re)generate global links: shared-attr + semantic"
     ).set_defaults(func=_cmd_link)
+
+    sub.add_parser(
+        "types", help="list ontology types (proposed/crystallised) + instances"
+    ).set_defaults(func=_cmd_types)
 
     sub.add_parser("mcp", help="serve the graph over MCP (Phase 7)").set_defaults(func=_cmd_mcp)
     return parser
