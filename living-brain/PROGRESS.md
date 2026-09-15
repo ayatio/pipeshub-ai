@@ -1,10 +1,17 @@
+ALL PHASES COMPLETE
+
 # PROGRESS
 
-**Current phase:** Phase 7 (MCP) — last. Phases 1-6 are green. The LLM-backed
-paths (vector search, extraction) are written and `-m ollama`-tested, but not
-run live here (no Ollama in this sandbox); the DB-only paths (schema, capture,
-FTS search, resolution, all link generators, relate, crystallisation) are
-verified live.
+**Status:** All seven phases (1-7) are green. The DB-only paths (schema, capture,
+FTS search, resolution, all link generators, relate, crystallisation, and the
+MCP tools) are verified live against Postgres+pgvector. The two LLM-backed paths
+(vector search, LLM extraction) are written and `-m ollama`-tested but not run
+live in this sandbox (no Ollama here); they engage automatically when a live
+Ollama is present, and degrade/skip cleanly when it is not.
+
+**To run the LLM paths:** point `.env` at a live Ollama (`ollama pull
+nomic-embed-text qwen2.5:14b`), then `uv run brain capture <note.md> --embed
+--extract`, `uv run brain search "<q>"`, and `uv run pytest -m ollama`.
 
 ## Done
 - **Phase 1 — Foundation (DoD green).** Scaffold (`pyproject.toml` uv/hatchling,
@@ -52,27 +59,37 @@ verified live.
 - Core modules: `config`, `ids`, `chunking`, `linking`, `wikilinks` (pure),
   `db`, `embedding`, `extraction`, `resolution`, `links`, `ontology`, `capture`,
   `retrieval`, `cli`.
-- **Test isolation:** DB tests now run against an isolated `<db>_test` database,
+- **Phase 7 — MCP (DoD green).** `mcp_server.py`: the graph served over the MCP
+  Python SDK (2.x `MCPServer`) as a thin read/traverse layer — tools `search`,
+  `relate`, `neighbors`, `entity`, `capture`, each calling the same functions
+  the CLI uses. `brain mcp` runs stdio (local-first default); `brain mcp --http`
+  runs streamable-http on `MCP_PORT` behind a `Bearer MCP_TOKEN` middleware.
+  Verified: all five tools register and answer via `call_tool` (capture→search→
+  entity→relate→neighbors); HTTP transport boots and 401s without a valid token.
+- **Test isolation:** DB tests run against an isolated `<db>_test` database,
   migrated once and truncated after each test — tests never pollute the real
   vault index and never interfere with each other.
-- Tests: **60 passing + 2 ollama-skips** — offline (chunking / ids / linking /
-  RRF fusion / extraction parsing / wikilinks / shape inference) + `-m db`
-  (capture idempotency, FTS search, resolution ladder incl. trigram, append-only
-  versioning, capture→extract wiring, all link generators, relate, confirm,
-  crystallisation) + `-m ollama` (semantic vector match, live extraction).
+- Tests: **64 passing + 2 ollama-skips** — offline (chunking / ids / linking /
+  RRF fusion / extraction parsing / wikilinks / shape inference / MCP tool
+  registration) + `-m db` (capture idempotency, FTS search, resolution ladder
+  incl. trigram, append-only versioning, capture→extract wiring, all link
+  generators, relate, confirm, crystallisation, MCP capture/search/entity/
+  relate/neighbors) + `-m ollama` (semantic vector match, live extraction).
   Non-offline tiers skip cleanly when their backend is absent, so `pytest -q`
   stays green anywhere.
 - Infra fallback: `scripts/pg_local.sh` + `make db-local` bring up a NATIVE
   PG16+pgvector cluster when there is no Docker daemon.
 - `scripts/run_night.sh` overnight loop; sample note `vault/samples/note.md`.
 
-## Next action
-1. **Phase 7 (MCP).** `mcp_server.py`: expose the core functions as MCP tools —
-   `brain.search`, `brain.relate`, `brain.neighbors`, `brain.entity`,
-   `brain.capture` — over the MCP Python SDK with bearer-token auth (`MCP_TOKEN`).
-   Wire `brain mcp` / `make mcp`. Tools call the same functions the CLI uses (a
-   thin read/traverse layer). DoD: server starts; a client can search + traverse.
-   After Phase 7's DoD is green, write "ALL PHASES COMPLETE" as line 1.
+## Next action (polish / follow-ups — the seven phases are done)
+- Run the full `-m ollama` tier against a real Ollama and tune extraction
+  prompt + thresholds on a larger sample; measure local JSON failure rate and
+  wire `EXTRACT_FALLBACK` if it exceeds 20% (CLAUDE.md §6).
+- Add a `brain rebuild` that drops the DB and re-ingests the whole vault (proves
+  "files are truth", §1.1) and a `brain confirm/reject` CLI over `set_status`.
+- Consider incremental re-embedding and an ANN-per-entity semantic pass for
+  large graphs (current `generate_semantic_links` is O(n²) with a distance
+  filter — fine for small/medium vaults).
 
 ## NEEDS-DECISION
 - *(none open)*

@@ -130,9 +130,15 @@ def _cmd_types(_args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_mcp(_args: argparse.Namespace) -> int:
-    print("mcp: not yet implemented — Phase 7 (MCP)", file=sys.stderr)
-    return 3
+def _cmd_mcp(args: argparse.Namespace) -> int:
+    from . import mcp_server
+
+    transport = "streamable-http" if args.http else "stdio"
+    if args.http:
+        cfg = Config.load()
+        print(f"serving MCP (streamable-http) on 127.0.0.1:{cfg.mcp_port}", file=sys.stderr)
+    mcp_server.serve(transport=transport)
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -169,7 +175,10 @@ def build_parser() -> argparse.ArgumentParser:
         "types", help="list ontology types (proposed/crystallised) + instances"
     ).set_defaults(func=_cmd_types)
 
-    sub.add_parser("mcp", help="serve the graph over MCP (Phase 7)").set_defaults(func=_cmd_mcp)
+    p_mcp = sub.add_parser("mcp", help="serve the graph over MCP")
+    p_mcp.add_argument("--http", action="store_true",
+                       help="streamable-http on MCP_PORT (bearer MCP_TOKEN); default is stdio")
+    p_mcp.set_defaults(func=_cmd_mcp)
     return parser
 
 

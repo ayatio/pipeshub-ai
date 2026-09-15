@@ -34,6 +34,7 @@ packages = ["src/living_brain"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+asyncio_mode = "auto"
 markers = [
     "db: requires a live Postgres+pgvector (opt-in, needs DATABASE_URL)",
     "ollama: requires a live Ollama server with models pulled",

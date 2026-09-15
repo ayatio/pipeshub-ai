@@ -167,6 +167,30 @@ def append_version_if_changed(
     return True
 
 
+def get_entity(conn: psycopg.Connection, entity_id: str) -> dict[str, Any] | None:
+    """Return an entity's snapshot + aliases + mention count, or None."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, type, label, props, first_seen, updated_at "
+            "FROM entity WHERE id = %s",
+            (entity_id,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        cur.execute("SELECT alias FROM entity_alias WHERE entity_id = %s", (entity_id,))
+        aliases = [r[0] for r in cur.fetchall()]
+        cur.execute(
+            "SELECT count(*) FROM entity_mention WHERE entity_id = %s", (entity_id,)
+        )
+        mentions = cur.fetchone()[0]
+    return {
+        "id": row[0], "type": row[1], "label": row[2], "props": row[3],
+        "first_seen": row[4].isoformat(), "updated_at": row[5].isoformat(),
+        "aliases": aliases, "mentions": mentions,
+    }
+
+
 def record_mention(
     conn: psycopg.Connection,
     entity_id: str,
