@@ -1,8 +1,9 @@
 # PROGRESS
 
-**Current phase:** Phase 5 (Link) — next. Phases 1-4 are green. The LLM-backed
-paths (vector search, extraction) are written and `-m ollama`-tested, but not
-run live here (no Ollama in this sandbox); the DB-only paths are verified live.
+**Current phase:** Phase 6 (Crystallise) — next. Phases 1-5 are green. The
+LLM-backed paths (vector search, extraction) are written and `-m ollama`-tested,
+but not run live here (no Ollama in this sandbox); the DB-only paths (schema,
+capture, FTS search, resolution, all link generators, relate) are verified live.
 
 ## Done
 - **Phase 1 — Foundation (DoD green).** Scaffold (`pyproject.toml` uv/hatchling,
@@ -29,28 +30,39 @@ run live here (no Ollama in this sandbox); the DB-only paths are verified live.
   trigram → embedding-cosine → mint ladder; append-only, change-gated
   bi-temporal versions; provenance mentions. `capture --extract` wires it end
   to end (entity embeddings opt-in via `--embed`).
-- Core modules: `config`, `ids`, `chunking`, `linking` (pure), `db`,
-  `embedding`, `extraction`, `resolution`, `capture`, `retrieval`, `cli`.
-- Tests: **44 passing + 2 ollama-skips** — offline (chunking / ids / linking /
-  RRF fusion / extraction parsing) + `-m db` (capture idempotency, FTS search,
-  resolution ladder incl. trigram, append-only versioning, capture→extract
-  wiring via an injected fake extractor) + `-m ollama` (semantic vector match,
-  live extraction). Non-offline tiers skip cleanly when their backend is
-  absent, so `pytest -q` stays green anywhere.
+- **Phase 5 — Link (DoD green).** `links.py` persists evidenced
+  `candidate_link`s (canonical `a_id<=b_id`, unique per `rel_type`, born
+  `proposed`) and generates all five methods: `extracted` (LLM relationships,
+  endpoints must resolve to real entities), `temporal` (co-mention per episode),
+  `shared_attr` (normalised shared prop value), `semantic` (entity-embedding
+  cosine ≥ τ), `structural` (`[[wikilinks]]` → minted concept entities, pure
+  parser in `wikilinks.py`). Capture's `_build_links` runs extracted+structural+
+  co-mention per episode; `brain link` runs the global generators. `brain relate
+  A B` explains every relation with method + score + status + evidence;
+  `set_status` is the only path out of `proposed` (§1.4). Verified end-to-end
+  (person↔project extracted+temporal, person↔concept structural).
+- Core modules: `config`, `ids`, `chunking`, `linking`, `wikilinks` (pure),
+  `db`, `embedding`, `extraction`, `resolution`, `links`, `capture`,
+  `retrieval`, `cli`.
+- Tests: **53 passing + 2 ollama-skips** — offline (chunking / ids / linking /
+  RRF fusion / extraction parsing / wikilinks) + `-m db` (capture idempotency,
+  FTS search, resolution ladder incl. trigram, append-only versioning,
+  capture→extract wiring, all link generators, relate, confirm) + `-m ollama`
+  (semantic vector match, live extraction). Non-offline tiers skip cleanly when
+  their backend is absent, so `pytest -q` stays green anywhere.
 - Infra fallback: `scripts/pg_local.sh` + `make db-local` bring up a NATIVE
   PG16+pgvector cluster when there is no Docker daemon.
 - `scripts/run_night.sh` overnight loop; sample note `vault/samples/note.md`.
 
 ## Next action
-1. **Phase 5 (link).** Persist all five link methods as evidenced
-   `candidate_link`s: `extracted` (from relationships the LLM emits — resolve
-   both ends, evidence = quote), `temporal`/co-mention (entities sharing an
-   episode), `shared_attr` (same normalised prop value), `semantic` (entity
-   embedding cosine ≥ τ), `structural` ([[wikilinks]] between notes). Add
-   `brain relate A B` to explain every relation with method + score + evidence.
-   Reuse the pure `linking.py` builders; add a DB writer with the canonical
-   unique-constraint upsert; `-m db` golden tests.
-2. Then Phase 6 (crystallise), 7 (MCP).
+1. **Phase 6 (crystallise).** `ontology.py`: observe entity types as they
+   accumulate; register/propose an `ontology_type` per distinct type, infer its
+   `shape` (common prop keys), and flip `proposed → crystallised` once
+   `instance_min` (default 3) entities share the shape. `brain types` to list
+   status + instance counts. Pure shape-inference tested offline; the count/flip
+   logic tested `-m db`.
+2. Then Phase 7 (MCP): serve search / relate / neighbors / capture / entity over
+   MCP with a bearer token (`make mcp`).
 
 ## NEEDS-DECISION
 - *(none open)*

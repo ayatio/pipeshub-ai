@@ -84,8 +84,33 @@ def _cmd_search(args: argparse.Namespace) -> int:
 
 
 def _cmd_relate(args: argparse.Namespace) -> int:
-    print("relate: not yet implemented — Phase 5 (link)", file=sys.stderr)
-    return 3
+    from . import db, links
+
+    with db.connect() as conn:
+        rels = links.relate(conn, args.a, args.b)
+    if not rels:
+        print(f"no known relations between {args.a} and {args.b}")
+        return 0
+    print(f"{args.a} ── {args.b}")
+    for r in rels:
+        ev = json.dumps(r["evidence"], separators=(",", ":"))
+        decided = f" ({r['decided_by']})" if r["decided_by"] else ""
+        print(
+            f"  [{r['status']}] {r['rel_type']} · {r['method']} "
+            f"score={r['score']:.3f}{decided}\n      evidence: {ev}"
+        )
+    return 0
+
+
+def _cmd_link(args: argparse.Namespace) -> int:
+    from . import db, links
+
+    with db.connect() as conn:
+        shared = links.generate_shared_attr_links(conn)
+        semantic = links.generate_semantic_links(conn)
+        conn.commit()
+    print(f"generated links — shared_attr: {shared}, semantic: {semantic}")
+    return 0
 
 
 def _cmd_mcp(_args: argparse.Namespace) -> int:
@@ -114,10 +139,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_search.add_argument("--no-vector", action="store_true", help="FTS only (skip Ollama)")
     p_search.set_defaults(func=_cmd_search)
 
-    p_rel = sub.add_parser("relate", help="explain relations between two entities (Phase 5)")
-    p_rel.add_argument("a")
-    p_rel.add_argument("b")
+    p_rel = sub.add_parser("relate", help="explain relations between two entities")
+    p_rel.add_argument("a", help="entity id, e.g. person/sarah-chen")
+    p_rel.add_argument("b", help="entity id, e.g. project/atlas")
     p_rel.set_defaults(func=_cmd_relate)
+
+    sub.add_parser(
+        "link", help="(re)generate global links: shared-attr + semantic"
+    ).set_defaults(func=_cmd_link)
 
     sub.add_parser("mcp", help="serve the graph over MCP (Phase 7)").set_defaults(func=_cmd_mcp)
     return parser

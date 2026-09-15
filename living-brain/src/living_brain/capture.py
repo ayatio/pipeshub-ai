@@ -11,12 +11,15 @@ from pathlib import Path
 
 import psycopg
 
+from . import links as L
 from . import resolution as R
 from .chunking import chunk_markdown
 from .config import Config
 from .embedding import Embedder, to_pgvector
-from .extraction import Extractor
+from .extraction import ExtractedRelationship, Extractor
 from .ids import content_hash
+from .linking import make_link
+from .wikilinks import parse_wikilinks
 
 
 @dataclass
@@ -66,6 +69,8 @@ def capture_text(
         episode_id = cur.fetchone()[0]
 
         chunks = chunk_markdown(text, title=title)
+        label_to_eid: dict[str, str] = {}
+        relationships: list[ExtractedRelationship] = []
         for ch in chunks:
             embedding = to_pgvector(embedder.embed(ch.content)) if embedder else None
             cur.execute(
@@ -76,8 +81,14 @@ def capture_text(
             chunk_id = cur.fetchone()[0]
             if extractor is not None:
                 _extract_chunk(
-                    conn, episode_id, chunk_id, ch.content, extractor, embedder, resolved_ids
+                    conn, episode_id, chunk_id, ch.content, extractor, embedder,
+                    resolved_ids, label_to_eid, relationships,
                 )
+
+        if extractor is not None:
+            _build_links(
+                conn, episode_id, text, resolved_ids, label_to_eid, relationships
+            )
     conn.commit()
     return CaptureResult(
         episode_id=episode_id,
@@ -95,11 +106,14 @@ def _extract_chunk(
     extractor: Extractor,
     embedder: Embedder | None,
     resolved_ids: set[str],
+    label_to_eid: dict[str, str],
+    relationships: list[ExtractedRelationship],
 ) -> None:
-    """Extract entities from one chunk and resolve them into the graph.
+    """Extract entities from one chunk, resolve them, and collect relationships.
 
-    Relationships are recorded in Phase 5 (linking); here we persist the typed
-    entities, their bi-temporal versions, and their mentions (provenance).
+    Persists typed entities, their bi-temporal versions, and their mentions
+    (provenance). Relationships and the label→entity map are accumulated for the
+    episode-level link pass in `_build_links`.
     """
     extraction = extractor.extract(text)
     for ent in extraction.entities:
@@ -111,6 +125,51 @@ def _extract_chunk(
                                     episode_id=episode_id)
         R.record_mention(conn, eid, episode_id, chunk_id)
         resolved_ids.add(eid)
+        label_to_eid[ent.label] = eid
+        for alias in ent.aliases:
+            label_to_eid[alias] = eid
+    relationships.extend(extraction.relationships)
+
+
+def _build_links(
+    conn: psycopg.Connection,
+    episode_id: int,
+    text: str,
+    resolved_ids: set[str],
+    label_to_eid: dict[str, str],
+    relationships: list[ExtractedRelationship],
+) -> None:
+    """Episode-level link pass: extracted, structural, and co-mention (temporal)."""
+    # extracted: LLM relationships whose endpoints resolved to real entities
+    for rel in relationships:
+        a = label_to_eid.get(rel.source) or _resolve_existing(conn, rel.source)
+        b = label_to_eid.get(rel.target) or _resolve_existing(conn, rel.target)
+        if a and b and a != b:
+            L.add_extracted_link(conn, a, b, rel.rel_type, rel.evidence, episode_id)
+
+    # structural: [[wikilinks]] mint concept entities the note references
+    entity_ids = list(resolved_ids)
+    for target in parse_wikilinks(text):
+        cid, _ = R.resolve_entity(conn, "concept", target)
+        R.upsert_entity(conn, cid, "concept", target, {})
+        R.record_mention(conn, cid, episode_id)
+        for eid in entity_ids:
+            if eid != cid:
+                L.upsert_link(
+                    conn,
+                    make_link(eid, cid, "references", "structural", 0.6,
+                              {"wikilink": target, "episode_id": episode_id}),
+                )
+        resolved_ids.add(cid)
+
+    # temporal: co-mention across everything now mentioned in this episode
+    L.generate_co_mention_links(conn, episode_id)
+
+
+def _resolve_existing(conn: psycopg.Connection, label: str) -> str | None:
+    """Resolve a label to an EXISTING entity id, or None (never mints)."""
+    eid, created = R.resolve_entity(conn, "thing", label)
+    return None if created else eid
 
 
 def capture_file(
