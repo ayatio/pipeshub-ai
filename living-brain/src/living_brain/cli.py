@@ -45,9 +45,12 @@ def _cmd_capture(args: argparse.Namespace) -> int:
         print(f"capture: no such file: {path}", file=sys.stderr)
         return 2
     with db.connect() as conn:
-        result = capture.capture_file(conn, path, embed=args.embed)
+        result = capture.capture_file(conn, path, embed=args.embed, extract=args.extract)
     if result.created:
-        print(f"captured episode {result.episode_id}: {result.chunk_count} chunk(s)")
+        msg = f"captured episode {result.episode_id}: {result.chunk_count} chunk(s)"
+        if args.extract:
+            msg += f", {result.entity_count} entity(ies)"
+        print(msg)
     else:
         print(f"already captured (episode {result.episode_id}); no changes")
     return 0
@@ -102,6 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_cap = sub.add_parser("capture", help="ingest a markdown note")
     p_cap.add_argument("path", help="path to a .md file")
     p_cap.add_argument("--embed", action="store_true", help="compute embeddings (needs Ollama)")
+    p_cap.add_argument("--extract", action="store_true", help="extract + resolve entities (needs Ollama)")
     p_cap.set_defaults(func=_cmd_capture)
 
     p_search = sub.add_parser("search", help="hybrid vector+FTS search")

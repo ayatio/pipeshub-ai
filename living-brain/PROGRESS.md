@@ -1,8 +1,8 @@
 # PROGRESS
 
-**Current phase:** Phase 4 (Extract & resolve) — next. Phases 1-3 are green;
-Phase 3's vector path is written + `-m ollama`-tested but not yet run live here
-(no Ollama in this sandbox).
+**Current phase:** Phase 5 (Link) — next. Phases 1-4 are green. The LLM-backed
+paths (vector search, extraction) are written and `-m ollama`-tested, but not
+run live here (no Ollama in this sandbox); the DB-only paths are verified live.
 
 ## Done
 - **Phase 1 — Foundation (DoD green).** Scaffold (`pyproject.toml` uv/hatchling,
@@ -21,24 +21,36 @@ Phase 3's vector path is written + `-m ollama`-tested but not yet run live here
   Ollama is down. `brain search "<q>"` returns ranked passages with provenance
   (episode + heading path + which signals surfaced each hit). Verified live via
   CLI (FTS path). `capture --embed` populates embeddings when Ollama is up.
+- **Phase 4 — Extract & resolve (DoD green; live extraction pending Ollama).**
+  `extraction.py`: strict-JSON typed extraction over Ollama (pydantic-validated
+  entities + relationships) with retries and an optional cloud fallback
+  (`EXTRACT_FALLBACK=openai|anthropic:model`, extraction only). Pure parsing /
+  prompt-building unit-tested offline. `resolution.py`: alias → slug/label →
+  trigram → embedding-cosine → mint ladder; append-only, change-gated
+  bi-temporal versions; provenance mentions. `capture --extract` wires it end
+  to end (entity embeddings opt-in via `--embed`).
 - Core modules: `config`, `ids`, `chunking`, `linking` (pure), `db`,
-  `embedding` (Ollama), `capture`, `retrieval`, `cli`.
-- Tests: **31 passing + 1 ollama-skip** — offline (chunking / ids / linking /
-  RRF fusion) + `-m db` (capture idempotency, FTS search) + `-m ollama`
-  (semantic vector match, skips without Ollama). All non-offline tiers skip
-  cleanly when their backend is absent, so `pytest -q` stays green anywhere.
+  `embedding`, `extraction`, `resolution`, `capture`, `retrieval`, `cli`.
+- Tests: **44 passing + 2 ollama-skips** — offline (chunking / ids / linking /
+  RRF fusion / extraction parsing) + `-m db` (capture idempotency, FTS search,
+  resolution ladder incl. trigram, append-only versioning, capture→extract
+  wiring via an injected fake extractor) + `-m ollama` (semantic vector match,
+  live extraction). Non-offline tiers skip cleanly when their backend is
+  absent, so `pytest -q` stays green anywhere.
 - Infra fallback: `scripts/pg_local.sh` + `make db-local` bring up a NATIVE
   PG16+pgvector cluster when there is no Docker daemon.
 - `scripts/run_night.sh` overnight loop; sample note `vault/samples/note.md`.
 
 ## Next action
-1. **Phase 4 (extract & resolve).** `extraction.py`: local-LLM strict-JSON
-   extraction of typed entities + relationships from a chunk (pydantic-validated,
-   with the EXTRACT_FALLBACK path when local JSON fails). `resolution.py`:
-   alias → exact label → trigram → embedding cosine → mint; record
-   entity_mention + entity_version. Pure JSON-validation/normalisation split out
-   for offline tests; live extraction under `-m ollama`.
-2. Then Phase 5 (link), 6 (crystallise), 7 (MCP).
+1. **Phase 5 (link).** Persist all five link methods as evidenced
+   `candidate_link`s: `extracted` (from relationships the LLM emits — resolve
+   both ends, evidence = quote), `temporal`/co-mention (entities sharing an
+   episode), `shared_attr` (same normalised prop value), `semantic` (entity
+   embedding cosine ≥ τ), `structural` ([[wikilinks]] between notes). Add
+   `brain relate A B` to explain every relation with method + score + evidence.
+   Reuse the pure `linking.py` builders; add a DB writer with the canonical
+   unique-constraint upsert; `-m db` golden tests.
+2. Then Phase 6 (crystallise), 7 (MCP).
 
 ## NEEDS-DECISION
 - *(none open)*
